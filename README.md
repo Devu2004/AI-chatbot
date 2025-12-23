@@ -1,107 +1,101 @@
-# 🤖 AI Chatobot
+# 🤖 NEXUS AI | Neural Command Center
 
-A full-stack real-time **AI Chatbot** built using **React**, **Node.js**, **Express**, and **Socket.IO**, with an AI model (Gemini / OpenAI compatible) generating responses.
-
-This project demonstrates real-time messaging, a modern UI, and clean backend architecture.
+A high-performance, full-stack **Real-Time AI Chatbot** ecosystem. Built using the **MERN** stack, this project integrates **Socket.io** for bi-directional communication and **Generative AI** for intelligent, context-aware responses.
 
 ---
 
-## 🚀 Features
+## 📸 Interface Preview
 
-- ⚡ Real-time communication using Socket.IO  
-- 🤖 AI-generated responses (Gemini/OpenAI)  
-- 🎨 Clean styled React frontend  
-- 🌐 Vite-powered development  
-- 🔄 Persistent chat history  
-- 🔒 Secure environment variable handling  
-- 🔐 Organized backend service architecture  
+| 🖥️ Neural Dashboard | 👤 User Identity Vault |
+| :---: | :---: |
+| ![Dashboard](./dashboard.png) | ![Profile](./profile.png) |
+| *Real-time AI Chat Interface* | *Secure User Profile & Registry* |
+
+---
+
+## 🚀 Key Features
+
+- ⚡ **Zero Latency:** Real-time bi-directional streaming via **Socket.IO**.
+- 🧠 **Neural Intelligence:** Integrated with **Google Gemini / OpenAI** models.
+- 🔒 **Identity Vault:** Secure User Profile management and registry system.
+- 🎨 **Luxury UI:** Cyber-Industrial design built with **React** & **Framer Motion**.
+- 🛡️ **Security:** **JWT**-protected routes and **Bcrypt** password hashing.
+- 📊 **Live Diagnostics:** Terminal-style log panel for system heartbeats.
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+| :--- | :--- |
+| **Frontend** | React.js, Vite, Tailwind CSS, Framer Motion |
+| **Backend** | Node.js, Express.js |
+| **Real-time** | Socket.io |
+| **Database** | MongoDB (Mongoose ODM) |
+| **AI Engine** | Google Generative AI (Gemini) |
+| **Icons** | Lucide React |
 
 ---
 
 ## 📂 Project Structure
-```
 
+```text
 AiChatobot/
 ├─ backend/
 │  ├─ src/
+│  │  ├─ controllers/
+│  │  │  └─ auth.controller.js   # Logic for Login/Register
+│  │  ├─ db/
+│  │  │  └─ db.js                # MongoDB Connection
+│  │  ├─ models/
+│  │  │  └─ auth.model.js        # User Schema
+│  │  ├─ routes/
+│  │  │  └─ auth.routes.js       # Auth Endpoints
 │  │  ├─ service/
-│  │  │  └─ ai.service.js       # AI completion logic
-│  │  └─ app.js                 # Express application
-│  ├─ .env                      # API key, config variables
-│  ├─ server.js                 # HTTP + Socket.IO server
-│  ├─ package.json
-│  └─ package-lock.json
-│
-└─ frontend/
-   ├─ src/
-   │  ├─ App.jsx                # Chat UI + socket client
-   │  └─ main.jsx               # Entry point for React
-   ├─ index.html
-   ├─ package.json
-   ├─ package-lock.json
-   ├─ vite.config.js
-   └─ README.md (optional)
-
+│  │  │  └─ ai.service.js        # AI Model Integration
+│  │  └─ app.js                  # Express Config
+│  ├─ .env                       # API Keys & Secrets
+│  └─ server.js                  # Socket.io + HTTP Server
+├─ frontend/
+│  ├─ src/
+│  │  ├─ components/
+│  │  │  └─ Auth.jsx             # Auth UI Components
+│  │  ├─ App.jsx                 # Main Nexus Dashboard
+│  │  └─ main.jsx                # React Entry Point
+│  └─ vite.config.js             # Vite Configuration
+├─ dashboard.png                 # Dashboard Screenshot
+└─ profile.png                   # Profile Screenshot
 ```
+## 🔌 Socket.IO Events
+Transmission (Client → Server)
+```
+JavaScript
 
+// Sending prompt to AI
+socket.emit("ai-message", { prompt: "System status?" });
+Reception (Server → Client)
+JavaScript
 
----
-
-## 🛠 Backend Setup
-
-### 1️⃣ Install dependencies
-```bash
+// Receiving AI generated response
+socket.on("ai-response", (data) => { console.log(data); });
+```
+##  📥 Installation & Setup
+1.  Backend Setup
+```
 cd backend
 npm install
-```
-### 2️⃣ Add your .env
-```bash
-API_KEY=your_gemini_or_openai_key
-```
-### 3️⃣ Start backend server
-```bash
+# Configure your .env with:
+# MONGO_URI, JWT_SECRET, API_KEY
 npm start
 ```
-## 🛠 Frontend Setup
-
-### 1️⃣ Install dependencies
-```bash
+2. Frontend Setup
+```
 cd frontend
 npm install
-```
-
-### 2️⃣ Start frontend (vite)
-```bash
 npm run dev
 ```
-## 🔌Socket.IO Events
-
-### Client → Server
-```bash
-"ai-message": {
-  "prompt": "User message"
-}
+##  🤝 Contributing
+Feel free to fork this project, improve the UI, or integrate more AI providers.
 ```
-
-### Server → Client
-```bash
-"ai-response": "AI generated text"
+Built with ⚡ by Devansh
 ```
----
-### 📸 UI Preview
-![Demo](./demo.png)
-
----
-### 🤝 Contributing
-
-##### Feel free to fork this project, improve the UI, add streaming, or integrate more AI providers.
----
-### 📄 License
-
-##### This project is for learning & personal use.
----
-### 💡 Author
-
-##### Built by Devansh ⚡
-
-

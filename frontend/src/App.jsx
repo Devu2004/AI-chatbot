@@ -1,301 +1,206 @@
 import React, { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
-import { Sun, Moon, Send, Bot, User, Zap, CircleDot } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import axios from "axios";
+import { 
+  Send, ArrowUpRight, Cpu, Globe, Hash, X, Terminal, 
+  Fingerprint, Zap, ArrowRight, Power, ShieldCheck, 
+  User, Mail, Database, Activity, LayoutGrid 
+} from "lucide-react";
 
-const customStyles = `
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
-
-  body {
-    font-family: 'Inter', sans-serif;
-  }
-
-  /* Custom Scrollbar */
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background-color: rgba(156, 163, 175, 0.5);
-    border-radius: 20px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(107, 114, 128, 0.8);
-  }
-
-  /* Message Animation */
-  @keyframes messageSlideIn {
-    from {
-      opacity: 0;
-      transform: translateY(20px) scale(0.95);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
-  }
-
-  .animate-message {
-    animation: messageSlideIn 0.3s cubic-bezier(0.25, 1, 0.5, 1) forwards;
-  }
-  
-  /* Typing Dot Animation */
-  @keyframes bounce {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-5px); }
-  }
-  .dot-bounce {
-    animation: bounce 1s infinite;
-  }
-  .dot-1 { animation-delay: 0s; }
-  .dot-2 { animation-delay: 0.2s; }
-  .dot-3 { animation-delay: 0.4s; }
-`;
+const GlobalStyles = () => (
+  <style dangerouslySetInnerHTML={{ __html: `
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;500;700&display=swap');
+    :root { --accent: #D4FF33; --bg: #050505; }
+    * { box-sizing: border-box; font-family: 'Space Grotesk', sans-serif; cursor: crosshair; }
+    body { background: var(--bg); color: white; margin: 0; overflow: hidden; height: 100vh; }
+    .glass-panel { background: rgba(10, 10, 10, 0.8); backdrop-filter: blur(50px); border: 1px solid rgba(255, 255, 255, 0.05); }
+    .neon-border:focus-within { border-color: var(--accent); box-shadow: 0 0 20px rgba(212, 255, 51, 0.1); }
+    .custom-scroll::-webkit-scrollbar { width: 2px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #222; }
+    input { background: transparent; border: none; color: white; outline: none; width: 100%; }
+  `}} />
+);
 
 export default function App() {
-  const [theme, setTheme] = useState("light");
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      text: "Hello! I'm your AI assistant. How can I help you today?",
-      sender: "bot",
-    },
-  ]);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [userData, setUserData] = useState(null); // User profile data
+  const [isLoginView, setIsLoginView] = useState(true);
+  const [authData, setAuthData] = useState({ username: "", email: "", password: "" });
+  const [activePanel, setActivePanel] = useState("chat"); // 'chat' or 'profile'
+  
+  const [messages, setMessages] = useState([{ id: 1, text: "Nexus Core Initialized. Awaiting input.", sender: "bot" }]);
   const [inputMessage, setInputMessage] = useState("");
   const [isBotTyping, setIsBotTyping] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
-
-  const messagesEndRef = useRef(null);
   const [socket, setSocket] = useState(null);
+  const messagesEndRef = useRef(null);
 
-  // -----------------------------
-  // 🔥 SOCKET CONNECTION
-  // -----------------------------
   useEffect(() => {
-    const socketInstance = io("http://localhost:3000", {
-      transports: ["websocket"],
-      autoConnect: true,
-    });
+    if (isLoggedIn) {
+      const socketInstance = io("http://localhost:3000", { transports: ["websocket"] });
+      setSocket(socketInstance);
+      socketInstance.on("ai-response", (res) => {
+        setMessages(p => [...p, { id: Date.now(), text: res, sender: "bot" }]);
+        setIsBotTyping(false);
+      });
+      return () => socketInstance.disconnect();
+    }
+  }, [isLoggedIn]);
 
-    setSocket(socketInstance);
+  const handleAuth = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const endpoint = isLoginView ? "/login/user" : "/register/user";
+      const { data } = await axios.post(`http://localhost:3000/api/auth${endpoint}`, authData, { withCredentials: true });
+      setUserData(data.user); // Backend se user info save ki
+      setIsLoggedIn(true);
+    } catch (err) {
+      alert(err.response?.data?.message || "Auth Error");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    socketInstance.on("connect", () => {
-      console.log("🔥 Connected to backend:", socketInstance.id);
-      setIsConnected(true);
-    });
-
-    socketInstance.on("disconnect", () => {
-      setIsConnected(false);
-    });
-
-    socketInstance.on("connect_error", (err) => {
-      console.error("❌ Socket connection error:", err.message);
-      setIsConnected(false);
-    });
-
-    socketInstance.on("ai-response", (response) => {
-      const botMessage = {
-        id: Date.now(),
-        text: response,
-        sender: "bot",
-      };
-      setMessages((prev) => [...prev, botMessage]);
-      setIsBotTyping(false);
-    });
-
-    return () => {
-      socketInstance.disconnect();
-    };
-  }, []);
-
-  // -----------------------------
-  // ✉️ Handle Send Message
-  // -----------------------------
   const sendMessage = (e) => {
     if (e) e.preventDefault();
     if (!inputMessage.trim()) return;
-
-    const userMessage = {
-      id: Date.now(),
-      text: inputMessage,
-      sender: "user",
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages(p => [...p, { id: Date.now(), text: inputMessage, sender: "user" }]);
+    socket?.emit("ai-message", { prompt: inputMessage });
     setInputMessage("");
     setIsBotTyping(true);
-
-    if (socket && isConnected) {
-      socket.emit("ai-message", { prompt: inputMessage });
-    } else {
-      setTimeout(() => {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: Date.now() + 1,
-            text: "I see you're not connected to the backend, but I look great don't I? Check your console for socket errors if you are trying to connect to a real server.",
-            sender: "bot",
-          },
-        ]);
-        setIsBotTyping(false);
-      }, 1500);
-    }
   };
 
-  // Auto-scroll to bottom
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isBotTyping]);
-
-  // Theme toggle
-  const toggleTheme = () => {
-    setTheme((prevTheme) => (prevTheme === "light" ? "dark" : "light"));
-  };
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, isBotTyping]);
 
   return (
-    <div className={theme}>
-      <style>{customStyles}</style>
+    <div className="h-screen w-full relative">
+      <GlobalStyles />
       
-      {/* Main App Container */}
-      <div className="min-h-screen w-full flex items-center justify-center bg-gray-50 dark:bg-[#0f172a] transition-colors duration-500 ease-in-out p-0 sm:p-6">
-        
-        {/* Chat Interface Card */}
-        <div className="w-full max-w-4xl h-[100dvh] sm:h-[85vh] bg-white dark:bg-[#1e293b] sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden transition-colors duration-500 border border-gray-200 dark:border-slate-700 relative">
-          
-          {/* Header */}
-          <header className="px-6 py-4 bg-white/80 dark:bg-[#1e293b]/90 backdrop-blur-md border-b border-gray-100 dark:border-slate-700 z-10 flex justify-between items-center sticky top-0">
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-                  <Zap size={20} strokeWidth={2.5} />
-                </div>
-                {/* Status Dot */}
-                <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white dark:border-[#1e293b] ${isConnected ? 'bg-emerald-500' : 'bg-amber-500'}`}></div>
-              </div>
-              <div>
-                <h1 className="font-bold text-gray-900 dark:text-white text-lg tracking-tight">
-                  AI Assistant
-                </h1>
-                <p className="text-xs font-medium text-gray-500 dark:text-slate-400 flex items-center gap-1">
-                  {isConnected ? "Online & Ready" : "Connecting..."}
-                </p>
-              </div>
-            </div>
-
-            <button
-              onClick={toggleTheme}
-              className="p-2.5 rounded-full bg-gray-100 dark:bg-slate-700/50 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 transition-all duration-300 active:scale-95"
-              aria-label="Toggle Theme"
-            >
-              {theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
-            </button>
-          </header>
-
-          {/* Chat Area */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6 space-y-6 bg-gradient-to-b from-gray-50/50 to-white dark:from-[#0f172a]/20 dark:to-[#1e293b]">
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex w-full animate-message ${
-                  msg.sender === "user" ? "justify-end" : "justify-start"
-                }`}
-              >
-                <div
-                  className={`flex max-w-[85%] sm:max-w-[75%] gap-3 ${
-                    msg.sender === "user" ? "flex-row-reverse" : "flex-row"
-                  }`}
-                >
-                  {/* Avatar */}
-                  <div
-                    className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center mt-auto mb-1 ${
-                      msg.sender === "user"
-                        ? "bg-indigo-600 text-white"
-                        : "bg-emerald-600 text-white"
-                    }`}
-                  >
-                    {msg.sender === "bot" ? (
-                      <Bot size={16} strokeWidth={2.5} />
-                    ) : (
-                      <User size={16} strokeWidth={2.5} />
-                    )}
-                  </div>
-
-                  {/* Message Bubble */}
-                  <div
-                    className={`px-5 py-3.5 shadow-sm text-[15px] leading-relaxed break-words ${
-                      msg.sender === "user"
-                        ? "bg-indigo-600 text-white rounded-2xl rounded-tr-sm"
-                        : "bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-200 border border-gray-100 dark:border-slate-700 rounded-2xl rounded-tl-sm"
-                    }`}
-                  >
-                    {msg.text}
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            {/* Typing Indicator */}
-            {isBotTyping && (
-              <div className="flex justify-start w-full animate-message">
-                <div className="flex max-w-[85%] gap-3">
-                   <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center mt-auto mb-1 bg-emerald-600 text-white">
-                      <Bot size={16} strokeWidth={2.5} />
-                   </div>
-                   <div className="bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 px-4 py-4 rounded-2xl rounded-tl-sm shadow-sm flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 bg-gray-400 rounded-full dot-bounce dot-1"></span>
-                      <span className="w-1.5 h-1.5 bg-gray-400 rounded-full dot-bounce dot-2"></span>
-                      <span className="w-1.5 h-1.5 bg-gray-400 rounded-full dot-bounce dot-3"></span>
-                   </div>
-                </div>
-              </div>
-            )}
-
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Input Area */}
-          <div className="p-4 sm:p-6 bg-white dark:bg-[#1e293b] border-t border-gray-100 dark:border-slate-700 z-10">
-            <form
-              onSubmit={sendMessage}
-              className="relative flex items-center gap-2 bg-gray-100 dark:bg-slate-800/50 p-2 rounded-[2rem] border border-transparent focus-within:border-indigo-300 dark:focus-within:border-indigo-700 focus-within:bg-white dark:focus-within:bg-slate-800 focus-within:ring-4 focus-within:ring-indigo-100 dark:focus-within:ring-indigo-500/10 transition-all duration-300"
-            >
-              <button
-                 type="button"
-                 className="p-3 rounded-full text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors ml-1"
-              >
-                <CircleDot size={22} />
-              </button>
+      <AnimatePresence mode="wait">
+        {!isLoggedIn ? (
+          <motion.div key="auth" className="h-full flex items-center justify-center p-6">
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md glass-panel p-10 rounded-[3rem]">
+              <Fingerprint size={50} className="text-[#D4FF33] mb-8" />
+              <h2 className="text-4xl font-light italic mb-8 tracking-tighter italic">{isLoginView ? "Nexus_Auth" : "Init_Node"}</h2>
               
-              <input
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                placeholder="Message AI..."
-                className="flex-1 bg-transparent text-gray-800 dark:text-gray-100 placeholder-gray-500 dark:placeholder-slate-400 outline-none text-base px-2"
-                disabled={!isConnected && !messages.length} // Optional: disable if totally offline
-              />
-              
-              <button
-                type="submit"
-                disabled={!inputMessage.trim()}
-                className={`p-3 rounded-full transition-all duration-300 transform ${
-                  inputMessage.trim()
-                    ? "bg-indigo-600 text-white hover:scale-105 hover:shadow-lg active:scale-95"
-                    : "bg-gray-200 dark:bg-slate-700 text-gray-400 cursor-not-allowed"
-                }`}
-              >
-                <Send size={20} strokeWidth={2.5} className={inputMessage.trim() ? "ml-0.5" : ""} />
-              </button>
-            </form>
+              <form onSubmit={handleAuth} className="space-y-6">
+                {!isLoginView && <input name="username" onChange={(e) => setAuthData({...authData, username: e.target.value})} placeholder="SUBJECT_NAME" className="p-4 border-b border-white/10 focus:border-[#D4FF33] transition-all" required />}
+                <input type="email" onChange={(e) => setAuthData({...authData, email: e.target.value})} placeholder="REGISTRY_EMAIL" className="p-4 border-b border-white/10 focus:border-[#D4FF33] transition-all" required />
+                <input type="password" onChange={(e) => setAuthData({...authData, password: e.target.value})} placeholder="ACCESS_KEY" className="p-4 border-b border-white/10 focus:border-[#D4FF33] transition-all" required />
+                
+                <button className="w-full py-5 bg-[#D4FF33] text-black font-bold rounded-2xl flex items-center justify-center gap-3 hover:shadow-[0_0_30px_#D4FF3344] transition-all">
+                  {loading ? "VERIFYING..." : "AUTHORIZE"} <ArrowRight size={20}/>
+                </button>
+              </form>
+              <button onClick={() => setIsLoginView(!isLoginView)} className="w-full mt-8 text-[10px] tracking-[3px] text-zinc-500 uppercase font-bold">{isLoginView ? "// CREATE NEW IDENTITY" : "// RETURN TO AUTH"}</button>
+            </motion.div>
+          </motion.div>
+        ) : (
+          <motion.div key="main" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col md:flex-row p-4 gap-4 bg-[#020202]">
             
-            <div className="text-center mt-2">
-               <p className="text-[10px] text-gray-400 dark:text-slate-500">
-                 AI can make mistakes. Please double-check responses.
-               </p>
-            </div>
-          </div>
-        </div>
-      </div>
+            {/* 1. LEFT SIDEBAR (NAVIGATION) */}
+            <nav className="w-full md:w-20 glass-panel rounded-[2.5rem] flex md:flex-col items-center py-8 gap-10 justify-center md:justify-start">
+              <div className="p-3 bg-[#D4FF33] rounded-2xl text-black shadow-[0_0_15px_#D4FF33]"><Cpu size={24}/></div>
+              <div onClick={() => setActivePanel("chat")} className={`cursor-pointer transition-colors ${activePanel === "chat" ? "text-[#D4FF33]" : "text-zinc-600 hover:text-white"}`}><LayoutGrid size={24}/></div>
+              <div onClick={() => setActivePanel("profile")} className={`cursor-pointer transition-colors ${activePanel === "profile" ? "text-[#D4FF33]" : "text-zinc-600 hover:text-white"}`}><User size={24}/></div>
+              <button onClick={() => window.location.reload()} className="md:mt-auto text-rose-500 hover:scale-110 transition-transform"><Power size={24}/></button>
+            </nav>
+
+            {/* 2. MAIN INTERACTIVE AREA */}
+            <main className="flex-1 glass-panel rounded-[3rem] flex flex-col overflow-hidden relative">
+              <header className="px-10 py-6 border-b border-white/5 flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <div className="w-2 h-2 rounded-full bg-[#D4FF33] animate-pulse" />
+                  <span className="text-[10px] tracking-[4px] font-bold text-zinc-500 uppercase">{activePanel === 'chat' ? 'Neural_Stream' : 'Identity_Vault'}</span>
+                </div>
+                <Terminal size={18} className="text-zinc-800" />
+              </header>
+
+              <div className="flex-1 relative overflow-hidden">
+                <AnimatePresence mode="wait">
+                  {activePanel === "chat" ? (
+                    <motion.div key="chat-box" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="h-full flex flex-col">
+                      <div className="flex-1 overflow-y-auto p-8 lg:p-14 space-y-12 custom-scroll">
+                        {messages.map(msg => (
+                          <div key={msg.id} className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}>
+                            <div className="max-w-[85%] lg:max-w-[70%]">
+                              <p className={`text-[9px] font-bold tracking-[3px] mb-2 uppercase ${msg.sender === "user" ? "text-[#D4FF33]" : "text-zinc-700"}`}>{msg.sender === "user" ? "// USER" : "// NEXUS"}</p>
+                              <div className={`text-xl lg:text-2xl font-light leading-snug ${msg.sender === "user" ? "text-white" : "text-zinc-400"}`}>{msg.text}</div>
+                            </div>
+                          </div>
+                        ))}
+                        {isBotTyping && <div className="text-[10px] tracking-[5px] text-[#D4FF33] animate-pulse">THINKING...</div>}
+                        <div ref={messagesEndRef} />
+                      </div>
+                      <footer className="p-8 lg:p-14 pt-0">
+                        <form onSubmit={sendMessage} className="relative flex items-center border-b border-white/10 py-4 focus-within:border-[#D4FF33] transition-colors">
+                          <input value={inputMessage} onChange={(e) => setInputMessage(e.target.value)} placeholder="SEND COMMAND..." className="text-xl lg:text-3xl placeholder:text-zinc-900" />
+                          <button type="submit" className={`transition-all ${inputMessage.trim() ? "text-[#D4FF33] scale-125" : "opacity-0"}`}><ArrowUpRight size={36}/></button>
+                        </form>
+                      </footer>
+                    </motion.div>
+                  ) : (
+                    <motion.div key="profile-box" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }} className="h-full flex items-center justify-center p-10">
+                       <div className="w-full max-w-2xl space-y-12">
+                          <div className="flex items-center gap-8 border-b border-white/5 pb-10">
+                             <div className="w-24 h-24 rounded-full bg-[#D4FF33] flex items-center justify-center text-black font-bold text-4xl shadow-[0_0_30px_#D4FF3366]">
+                                {userData?.username?.charAt(0).toUpperCase()}
+                             </div>
+                             <div>
+                                <h3 className="text-4xl font-light tracking-tighter">{userData?.username}</h3>
+                                <p className="text-zinc-500 tracking-[4px] text-[10px] uppercase">Neural_ID: {userData?._id?.slice(-8)}</p>
+                             </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                             <div className="p-6 bg-white/5 rounded-3xl border border-white/5">
+                                <p className="text-zinc-600 text-[9px] uppercase tracking-widest mb-2 font-bold">Email_Registry</p>
+                                <p className="text-xl font-light text-zinc-300 flex items-center gap-3"><Mail size={16} className="text-[#D4FF33]"/> {userData?.email}</p>
+                             </div>
+                             <div className="p-6 bg-white/5 rounded-3xl border border-white/5">
+                                <p className="text-zinc-600 text-[9px] uppercase tracking-widest mb-2 font-bold">Protocol_Status</p>
+                                <p className="text-xl font-light text-zinc-300 flex items-center gap-3"><ShieldCheck size={16} className="text-emerald-500"/> Verified_Node</p>
+                             </div>
+                          </div>
+
+                          <div className="p-10 border border-white/5 rounded-[2rem] bg-gradient-to-r from-transparent to-[#D4FF3305]">
+                             <p className="text-zinc-600 text-[9px] uppercase tracking-widest mb-6 font-bold">System_Diagnostics</p>
+                             <div className="flex flex-wrap gap-4">
+                                <div className="px-4 py-2 bg-[#D4FF3311] border border-[#D4FF3333] text-[#D4FF33] text-[10px] font-bold rounded-full">UPTIME: 99.9%</div>
+                                <div className="px-4 py-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-bold rounded-full">ENCRYPTION: AES-256</div>
+                                <div className="px-4 py-2 bg-zinc-800 text-zinc-400 text-[10px] font-bold rounded-full">CORE: V2.5.0</div>
+                             </div>
+                          </div>
+                       </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </main>
+
+            {/* 3. RIGHT LOGS PANEL (Desktop Only) */}
+            <aside className="hidden xl:flex w-80 glass-panel rounded-[2.5rem] flex-col p-8 overflow-hidden">
+               <div className="flex justify-between items-center mb-10">
+                  <span className="text-[10px] font-bold tracking-[4px] text-[#D4FF33]">LIVE_LOGS</span>
+                  <Activity size={16} className="text-[#D4FF33] animate-pulse"/>
+               </div>
+               <div className="flex-1 font-mono text-[11px] text-zinc-600 space-y-4 custom-scroll overflow-y-auto">
+                  <p className="text-emerald-500 tracking-tighter uppercase">{`> [${new Date().toLocaleTimeString()}] NODE_READY`}</p>
+                  <p>{`> [STDOUT] STREAM_SYNCED`}</p>
+                  <p>{`> [NETWORK] LATENCY: 12ms`}</p>
+                  <p className="text-[#D4FF33]">{`> [ID] ${userData?.username?.toUpperCase()}_LOGGED_IN`}</p>
+               </div>
+               <div className="mt-8 pt-8 border-t border-white/5 flex items-center gap-4">
+                  <Database size={16} className="text-zinc-700"/>
+                  <span className="text-[9px] font-bold text-zinc-700 tracking-widest uppercase">Cluster: AWS_MUMBAI</span>
+               </div>
+            </aside>
+
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

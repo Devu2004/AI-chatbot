@@ -1,63 +1,61 @@
-require('dotenv').config()
-const app = require('./src/app')
+require('dotenv').config();
+const app = require('./src/app');
 const { createServer } = require("http");
 const { Server } = require("socket.io");
 const generateContent = require('./src/service/ai.service');
-const { log } = require('console');
-const httpServer = createServer();
+const connectToDB = require('./src/db/db')
+const httpServer = createServer(app);
+connectToDB()
+
 const io = new Server(httpServer, { 
-  cors:{
-    origin: "http://localhost:5173",
-  }
- });
-// inbuilt method - 1
+  cors: { origin: "http://localhost:5173" }
+});
 
-const chatHistory = []
 io.on("connection", (socket) => {
-  console.log("User is Connected");
-
-  // Cooldown flag per user
+  console.log("✅ User connected:", socket.id);
+  const chatHistory = [];
   let isProcessing = false;
 
-socket.on("ai-message", async (data) => {
-  if (!data?.prompt) return;
+  socket.on("ai-message", async (data) => {
+    console.log("📩 Message received:", data);
+    
+    if (!data?.prompt || isProcessing) return;
 
-  // push user message
-  chatHistory.push({
-    role: "user",
-    parts: [{ text: data.prompt }]
-  });
-
-  if (isProcessing) {
-    socket.emit("ai-error", "Please wait… processing previous request.");
-    return;
-  }
-
-  isProcessing = true;
-
-  try {
-    const response = await generateContent(chatHistory);
-
-    // push model message
     chatHistory.push({
-      role: "model",
-      parts: [{ text: response }]
+      role: "user",
+      parts: [{ text: data.prompt }]
     });
 
-    socket.emit("ai-response", response);
-  } catch (err) {
-    console.log("AI Error:", err);
-    socket.emit("ai-error", "System is busy. Please try again in a moment.");
-  } finally {
-    setTimeout(() => (isProcessing = false), 1500);
-  }
-});
+    // History clean up
+    if (chatHistory.length > 10) chatHistory.shift();
+
+    isProcessing = true;
+
+    try {
+      const response = await generateContent(chatHistory);
+
+      chatHistory.push({
+        role: "model",
+        parts: [{ text: response }]
+      });
+
+      socket.emit("ai-response", response);
+    } catch (err) {
+      console.error("Socket Error:", err.message);
+      socket.emit("ai-error", "AI is busy or model is loading. Try again in 10 seconds.");
+    } finally {
+      isProcessing = false;
+    }
+  });
+
   socket.on("disconnect", () => {
-    console.log("User Disconnected");
+    console.log("❌ User disconnected");
   });
 });
 
 
-httpServer.listen(process.env.PORT,()=>{
-    console.log(`Server is Runinng on port - ${process.env.PORT}`);
+const PORT = process.env.PORT || 3000;
+httpServer.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🔑 HF Key check: ${process.env.HF_API_KEY ? "Found" : "Missing"}`);
 });
